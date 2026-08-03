@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "esnext",
+    "jsx": "react-jsx",
+    "types": ["vite/client"],
+    "noEmit": true
+  },
+  "include": ["src/frontend/**/*", "types/src/**/*"]
+}

@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["src/gateway/**/*", "src/conversation/**/*", "src/runtime/**/*", "src/planner/**/*", "src/tools/**/*", "src/workspace/**/*", "src/patch/**/*", "src/validation/**/*", "src/persistence/**/*", "src/llm/**/*", "types/src/**/*", "vitest.config.ts"]
+}
