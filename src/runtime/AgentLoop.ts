@@ -3,6 +3,7 @@ import type { ContextLoader, LoadedContext } from "./ContextLoader";
 import type { PromptBuilder } from "./PromptBuilder";
 import type { ToolRegistry } from "./ToolRegistry";
 import { MaxIterationsError, type ModelRouter } from "../llm";
+import type { ExecutionPlan, PlannerEngine, TaskNode } from "../planner";
 
 export interface AgentInteractions {
   emit(event: SseEvent): void;
@@ -17,6 +18,9 @@ export interface AgentLoopOptions {
   contextLoader: ContextLoader;
   interactions: AgentInteractions;
   maxIterations?: number;
+  /** When set, the run is planned up-front and replanned on task failure. */
+  planner?: PlannerEngine;
+  maxReplans?: number;
 }
 
 export interface RunInput {
@@ -41,7 +45,9 @@ export interface AgentLoop {
 }
 
 const DEFAULT_MAX_ITERATIONS = 30;
+const DEFAULT_MAX_REPLANS = 3;
 const TOOL_RESULT_PREVIEW = 2000;
+const MAX_PLAN_CONTEXT_CHARS = 2000;
 
 /**
  * Fallback for models without native tool calling: if the reply is a single
@@ -49,31 +55,78 @@ const TOOL_RESULT_PREVIEW = 2000;
  * ```json), treat it as a tool call. Returns null when the text is prose.
  */
 export function tryParseJsonToolCall(text: string): ToolCall | null {
-  const stripped = text.trim().replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "").trim();
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(stripped);
-  } catch {
-    return null;
-  }
-  const candidates = Array.isArray(parsed) ? parsed : [parsed];
-  const first = candidates[0] as { name?: unknown; arguments?: unknown } | undefined;
-  if (!first || typeof first.name !== "string" || !first.name) return null;
-  const input =
-    first.arguments && typeof first.arguments === "object"
-      ? (first.arguments as Record<string, unknown>)
-      : {};
-  return { id: `json-${Date.now()}`, name: first.name, input };
+  return tryParseJsonToolCalls(text)[0] ?? null;
 }
 
 /**
- * The agent loop as a factory function: build prompt → call model → if tool
- * calls arrive, gate and execute them → append results → repeat until the
- * model answers without tool calls or the iteration cap is hit.
+ * Extended fallback that decodes one or more tool calls from a reply:
+ * a single object, a JSON array of objects, or several newline-separated
+ * objects (models like qwen2.5-coder emit one line per call). Returns an
+ * empty array for prose or malformed replies.
+ */
+export function tryParseJsonToolCalls(text: string): ToolCall[] {
+  const candidates: unknown[] = [];
+  const whole = parseJsonText(text);
+  if (whole !== undefined) {
+    candidates.push(...(Array.isArray(whole) ? (whole as unknown[]) : [whole]));
+  } else {
+    for (const line of text.trim().split("\n")) {
+      const candidate = parseJsonText(line);
+      if (candidate !== undefined) candidates.push(candidate);
+    }
+  }
+  const calls: ToolCall[] = [];
+  for (const candidate of candidates) {
+    const first = candidate as { name?: unknown; arguments?: unknown } | undefined;
+    if (!first || typeof first.name !== "string" || !first.name) continue;
+    const input = first.arguments && typeof first.arguments === "object" ? (first.arguments as Record<string, unknown>) : {};
+    calls.push({ id: `json-${Date.now()}-${calls.length}`, name: first.name, input });
+  }
+  return calls;
+}
+
+function parseJsonText(text: string): unknown | undefined {
+  const stripped = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  try {
+    return JSON.parse(stripped);
+  } catch {
+    return undefined;
+  }
+}
+
+interface Usage {
+  inputTokens: number;
+  outputTokens: number;
+  model: string;
+  provider: string;
+}
+
+function accumulateUsage(acc: Usage | null, next: Usage): Usage {
+  if (!acc) return next;
+  return {
+    inputTokens: acc.inputTokens + next.inputTokens,
+    outputTokens: acc.outputTokens + next.outputTokens,
+    model: next.model,
+    provider: next.provider
+  };
+}
+
+/**
+ * The agent loop as a factory function. With a planner it orchestrates the
+ * goal as an execution plan: tasks run in dependency order inside the shared
+ * transcript, each with its own model loop; a failed task triggers a replan
+ * (bounded) with the revised plan emitted over SSE. Without a planner the
+ * whole run is one implicit task, exactly the unplanned behavior.
  */
 export function createAgentLoop(options: AgentLoopOptions): AgentLoop {
   const maxIterations = options.maxIterations ?? DEFAULT_MAX_ITERATIONS;
-  const { router, registry, promptBuilder, contextLoader, interactions } = options;
+  const maxReplans = options.maxReplans ?? DEFAULT_MAX_REPLANS;
+  const { router, registry, promptBuilder, contextLoader, interactions, planner } = options;
+
+  function summarizeContext(loaded: LoadedContext): string {
+    const parts = [loaded.fileTree ? `File tree:\n${loaded.fileTree}` : "", loaded.keyFiles ? `Relevant files:\n${loaded.keyFiles}` : ""];
+    return parts.filter(Boolean).join("\n\n").slice(0, MAX_PLAN_CONTEXT_CHARS);
+  }
 
   async function run(input: RunInput, signal?: AbortSignal): Promise<RunResult> {
     const loaded: LoadedContext = await contextLoader.load(input.workspace);
@@ -92,23 +145,94 @@ export function createAgentLoop(options: AgentLoopOptions): AgentLoop {
       redact: input.redact
     };
 
-    let usage: RunResult["usage"] = null;
+    let plan: ExecutionPlan | null = null;
+    if (planner) {
+      plan = await planner.plan(input.task, summarizeContext(loaded));
+      interactions.emit({ type: "agent.plan", steps: plan.steps() });
+    }
+
+    let replansLeft = maxReplans;
+    let queue: TaskNode[] = plan ? plan.remaining() : [];
+    const usageState: { usage: Usage | null } = { usage: null };
+    const taskSummaries: string[] = [];
+
+    if (!plan) {
+      const finalText = await runTaskLoop(messages, ctx, signal, usageState);
+      return {
+        summary: finalText,
+        usage: usageState.usage,
+        transcript: messages.slice(historyStart).filter((m) => m.role !== "system")
+      };
+    }
+
+    for (;;) {
+      if (plan && !plan.isComplete()) queue = plan.remaining();
+      const task = queue.shift();
+      if (!task) break;
+
+      if (plan) {
+        plan.markRunning(task.id);
+        messages.push({
+          role: "user",
+          content: `[Plan task ${task.id}] ${task.title}\n\n${task.description}`
+        });
+      }
+
+      try {
+        const finalText = await runTaskLoop(messages, ctx, signal, usageState);
+        if (plan) {
+          plan.markDone(task.id);
+          taskSummaries.push(finalText);
+        } else {
+          const transcript = messages.slice(historyStart).filter((m) => m.role !== "system");
+          return { summary: finalText, usage: usageState.usage, transcript };
+        }
+      } catch (err) {
+        if (signal?.aborted || !plan || replansLeft <= 0) throw err;
+        replansLeft -= 1;
+        plan.markFailed(task.id);
+        const failure = { taskTitle: task.title, reason: err instanceof Error ? err.message : String(err) };
+        const revised = await planner!.replan(input.task, summarizeContext(loaded), failure);
+        plan = revised;
+        interactions.emit({ type: "agent.plan", steps: revised.steps() });
+        messages.push({
+          role: "user",
+          content: `[Plan revision] Task "${task.title}" failed: ${failure.reason}. Continue with the revised remaining plan.`
+        });
+        queue = plan.remaining();
+      }
+    }
+
+    if (!plan) throw new Error("Agent loop exited without completing");
+    const transcript = messages.slice(historyStart).filter((m) => m.role !== "system");
+    return {
+      summary: taskSummaries.join("\n\n"),
+      usage: usageState.usage,
+      transcript
+    };
+  }
+
+  /** One task's model loop: iterate tools until the model answers plainly. */
+  async function runTaskLoop(
+    messages: ChatMessage[],
+    ctx: ToolContext,
+    signal: AbortSignal | undefined,
+    usageState: { usage: Usage | null }
+  ): Promise<string> {
     for (let i = 0; i < maxIterations; i++) {
       if (signal?.aborted) throw new Error("Agent run aborted");
       const response = await router.complete({ messages, tools: registry.list(), signal });
-      usage = response.usage;
+      usageState.usage = accumulateUsage(usageState.usage, response.usage);
 
       let toolCalls = response.toolCalls;
       if (toolCalls.length === 0 && response.text) {
-        const parsed = tryParseJsonToolCall(response.text);
-        if (parsed && registry.get(parsed.name)) toolCalls = [parsed];
+        toolCalls = tryParseJsonToolCalls(response.text).filter((call) => registry.get(call.name));
       }
 
       if (toolCalls.length === 0) {
         interactions.emit({ type: "agent.text_delta", delta: response.text ?? "" });
         messages.push({ role: "assistant", content: response.text ?? "" });
-        const transcript = messages.slice(historyStart).filter((m) => m.role !== "system");
-        return { summary: response.text ?? "", usage, transcript };
+        return response.text ?? "";
       }
 
       if (response.text && toolCalls.length > 0 && !response.toolCalls.length) {

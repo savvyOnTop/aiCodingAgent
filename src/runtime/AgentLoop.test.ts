@@ -181,4 +181,37 @@ describe("AgentLoop", () => {
     expect(result.summary).toBe("done");
     await rm(root, { recursive: true, force: true });
   });
+
+  it("parses multiple newline-separated JSON tool calls from one reply", async () => {
+    const events: SseEvent[] = [];
+    const blob =
+      '{"name": "write_file", "arguments": {"path": "multi_a.txt", "content": "a"}}\n' +
+      '{"name": "write_file", "arguments": {"path": "multi_b.txt", "content": "b"}}';
+    const router = {
+      complete: vi
+        .fn()
+        .mockResolvedValueOnce(modelResult(blob, []))
+        .mockResolvedValueOnce(modelResult("both written", []))
+    };
+    const { loop, ws, root, registry } = await makeLoop(router as never, {
+      emit: (e) => events.push(e),
+      requestConfirmation: async () => true
+    });
+    registry.registerAll(fileTools);
+
+    const result = await loop.run({
+      task: "write two files",
+      history: [{ role: "user", content: "write two files" }],
+      workspace: ws,
+      sessionId: "s",
+      cwd: ".",
+      redact: (t) => t
+    });
+
+    expect(await readFile(path.join(root, "multi_a.txt"), "utf8")).toBe("a");
+    expect(await readFile(path.join(root, "multi_b.txt"), "utf8")).toBe("b");
+    expect(events.filter((e) => e.type === "agent.tool_start")).toHaveLength(2);
+    expect(result.summary).toBe("both written");
+    await rm(root, { recursive: true, force: true });
+  });
 });

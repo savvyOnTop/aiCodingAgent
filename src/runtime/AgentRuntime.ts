@@ -1,4 +1,5 @@
 import { createDefaultRouter, type ModelRouter } from "../llm";
+import { createPlanner, type PlannerEngine } from "../planner";
 import { defaultTools } from "../tools";
 import { createAgentLoop, type AgentInteractions, type RunInput, type RunResult } from "./AgentLoop";
 import { createContextLoader } from "./ContextLoader";
@@ -11,6 +12,10 @@ export interface AgentRuntimeOptions {
   promptBuilder?: ReturnType<typeof createPromptBuilder>;
   contextLoader?: ReturnType<typeof createContextLoader>;
   maxIterations?: number;
+  /** Enable goal planning; default on, backed by the same router. */
+  planner?: PlannerEngine;
+  /** Set false to disable planning entirely. */
+  plan?: boolean;
 }
 
 export interface AgentRuntime {
@@ -29,6 +34,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions = {}): AgentRunt
   const promptBuilder = options.promptBuilder ?? createPromptBuilder();
   const contextLoader = options.contextLoader ?? createContextLoader();
   const maxIterations = options.maxIterations ?? 30;
+  const planner = options.plan === false ? undefined : (options.planner ?? createPlanner({ router }));
 
   async function run(
     input: RunInput,
@@ -41,7 +47,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions = {}): AgentRunt
       promptBuilder,
       contextLoader,
       interactions,
-      maxIterations
+      maxIterations,
+      planner
     });
     return loop.run(input, signal);
   }
