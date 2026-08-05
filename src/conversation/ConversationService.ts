@@ -35,6 +35,7 @@ export interface ConversationService {
   terminate(conversationId: string): void;
   history(conversationId: string): MessageRecord[];
   listFiles(conversationId: string, path?: string): Promise<FileEntry[]>;
+  getWorkspace(conversationId: string): Workspace;
   destroy(conversationId: string): Promise<void>;
 }
 
@@ -153,11 +154,16 @@ export function createConversationService(deps: ConversationServiceDeps): Conver
   }
 
   async function listFiles(conversationId: string, path = ""): Promise<FileEntry[]> {
+    const workspace = getWorkspace(conversationId);
+    return workspace.listDir(path);
+  }
+
+  function getWorkspace(conversationId: string): Workspace {
     const conversation = store.getConversation(conversationId);
     if (!conversation) throw new Error(`Unknown conversation: ${conversationId}`);
     const workspace = workspaces.get(conversation.workspaceId);
     if (!workspace) throw new Error(`Unknown workspace: ${conversation.workspaceId}`);
-    return workspace.listDir(path);
+    return workspace;
   }
 
   async function destroy(conversationId: string): Promise<void> {
@@ -187,5 +193,5 @@ export function createConversationService(deps: ConversationServiceDeps): Conver
     }));
   }
 
-  return { create, streamMessage, confirm, terminate, history, listFiles, destroy };
+  return { create, streamMessage, confirm, terminate, history, listFiles, getWorkspace, destroy };
 }

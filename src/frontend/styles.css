@@ -56,6 +56,13 @@ body {
   overflow: hidden;
 }
 
+.terminal {
+  height: 220px;
+  border-top: 1px solid #23262e;
+  background: #0d1017;
+  padding: 6px 8px;
+}
+
 .files {
   width: 260px;
   border-right: 1px solid #23262e;

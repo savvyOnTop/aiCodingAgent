@@ -15,11 +15,22 @@ export interface LocalWorkspaceOptions {
 }
 
 const MAX_OUTPUT = 200_000;
+const MAX_COMMAND_CHARS = 10_000;
+const MAX_WRITE_CHARS = 2_000_000;
+
+/** Minimal env allowlist: working shell defaults, never secrets. */
+function buildSanitizedEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of ["PATH", "HOME", "LANG", "TERM", "USER", "SHELL", "TMPDIR", "DOCKER_HOST", "DOCKER_CONTEXT", "NO_COLOR", "CI"]) {
+    if (process.env[key] !== undefined) env[key] = process.env[key];
+  }
+  return env;
+}
 
 /**
  * Host-directory workspace as a factory function. All paths are resolved
  * against the workspace root and traversal outside it is rejected; commands
- * run with the root as cwd.
+ * run with the root as cwd under a sanitized environment (no secret vars).
  */
 export function createLocalWorkspace(options: LocalWorkspaceOptions): Workspace & { getRoot(): string } {
   const root = path.resolve(options.root);
@@ -27,9 +38,7 @@ export function createLocalWorkspace(options: LocalWorkspaceOptions): Workspace 
   const commandTimeoutMs = options.commandTimeoutMs ?? 120_000;
 
   function resolve(p: string): string {
-    //checks if path is absolute like /Users/sagar/project/src/App.tsx is absolute but project/src/App.tsx is not
     if (path.isAbsolute(p)) {
-      // this removes extra . or .. or / from the path example /Users/sagar/project/src//App.tsx becmoes /Users/sagar/project/src/App.tsx
       const absolute = path.normalize(p);
       if (!isInside(absolute)) {
         throw new Error(`Path escapes workspace root: ${p}`);
@@ -37,8 +46,6 @@ export function createLocalWorkspace(options: LocalWorkspaceOptions): Workspace 
       return absolute;
     }
     const target = path.resolve(root, p);
-    // it resolves resolve("../project/package.json") in to /Users/sagar/project/package.json
-
     if (!isInside(target)) {
       throw new Error(`Path escapes workspace root: ${p}`);
     }
@@ -46,10 +53,7 @@ export function createLocalWorkspace(options: LocalWorkspaceOptions): Workspace 
   }
 
   function isInside(target: string): boolean {
-    // here the root is checked for ending with / =>  /Users/sagar/project/
     const rootWithSep = root.endsWith(path.sep) ? root : root + path.sep;
-
-    // true will go if  /Users/sagar/project/src/App.tsx starts with /Users/sagar/project/ and it does
     return target === root || target.startsWith(rootWithSep);
   }
 
@@ -58,6 +62,9 @@ export function createLocalWorkspace(options: LocalWorkspaceOptions): Workspace 
   }
 
   async function writeFile(p: string, content: string): Promise<void> {
+    if (content.length > MAX_WRITE_CHARS) {
+      throw new Error(`writeFile content too large (${content.length} chars, max ${MAX_WRITE_CHARS})`);
+    }
     const target = resolve(p);
     await fs.mkdir(path.dirname(target), { recursive: true });
     await fs.writeFile(target, content, "utf8");
@@ -84,13 +91,20 @@ export function createLocalWorkspace(options: LocalWorkspaceOptions): Workspace 
   }
 
   async function runCommand(command: string, cwd?: string): Promise<CommandResult> {
+    if (command.length > MAX_COMMAND_CHARS) {
+      return {
+        exitCode: 1,
+        stdout: "",
+        stderr: `Command too long (${command.length} chars, max ${MAX_COMMAND_CHARS})`
+      };
+    }
     const dir = cwd ? resolve(cwd) : root;
     try {
       const { stdout, stderr } = await execFileAsync(shell, ["-lc", command], {
         cwd: dir,
         timeout: commandTimeoutMs,
         maxBuffer: MAX_OUTPUT + 1024,
-        env: process.env
+        env: buildSanitizedEnv()
       });
       return trim({ exitCode: 0, stdout, stderr });
     } catch (err) {
@@ -129,6 +143,7 @@ export function createLocalWorkspace(options: LocalWorkspaceOptions): Workspace 
   return {
     id: options.id,
     kind: "local",
+    rootPath: root,
     getRoot: () => root,
     readFile,
     writeFile,

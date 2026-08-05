@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { createSession } from "./api";
 import { ChatPanel } from "./ChatPanel";
 import { FileExplorer } from "./FileExplorer";
+import { TerminalPanel } from "./Terminal";
 import "./styles.css";
 
 export function App() {
@@ -50,10 +51,13 @@ export function App() {
         {sessionId && <span className="session-id">session {sessionId.slice(0, 8)}</span>}
       </header>
       {sessionId ? (
-        <main className="app-body">
-          <FileExplorer sessionId={sessionId} />
-          <ChatPanel sessionId={sessionId} />
-        </main>
+        <>
+          <main className="app-body">
+            <FileExplorer sessionId={sessionId} />
+            <ChatPanel sessionId={sessionId} />
+          </main>
+          <TerminalPanel sessionId={sessionId} />
+        </>
       ) : (
         <p className="hint">Creating session…</p>
       )}

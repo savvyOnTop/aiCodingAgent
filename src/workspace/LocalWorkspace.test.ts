@@ -50,6 +50,32 @@ describe("LocalWorkspace", () => {
     await rm(root, { recursive: true, force: true });
   });
 
+  it("strips secret env vars from child command environments", async () => {
+    const { ws, root } = await makeWorkspace();
+    process.env.MY_TEST_SECRET = "s3cret-value";
+    process.env.OPENROUTER_API_KEY = "sk-test-key";
+    try {
+      const res = await ws.runCommand("env");
+      expect(res.stdout).not.toContain("s3cret-value");
+      expect(res.stdout).not.toContain("sk-test-key");
+      expect(res.stdout).toContain("PATH=");
+    } finally {
+      delete process.env.MY_TEST_SECRET;
+      delete process.env.OPENROUTER_API_KEY;
+    }
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("rejects oversized commands and writes", async () => {
+    const { ws, root } = await makeWorkspace();
+    const big = "x".repeat(11_000);
+    const res = await ws.runCommand(big);
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/too long/);
+    await expect(ws.writeFile("big.txt", "y".repeat(2_000_001))).rejects.toThrow(/too large/);
+    await rm(root, { recursive: true, force: true });
+  });
+
   it("parses git status in a repo", async () => {
     const { ws, root } = await makeWorkspace();
     await ws.runCommand("git init -q && git config user.email t@t && git config user.name t");

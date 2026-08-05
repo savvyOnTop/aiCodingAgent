@@ -96,6 +96,8 @@ export interface GitStatusResult {
 export interface Workspace {
   readonly id: string;
   readonly kind: "local" | "docker" | "firecracker";
+  /** Absolute path where the workspace files live (host for local, container mount for docker). */
+  readonly rootPath?: string;
   readFile(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
   listDir(path: string): Promise<FileEntry[]>;

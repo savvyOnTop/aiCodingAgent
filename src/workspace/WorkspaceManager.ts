@@ -3,12 +3,15 @@ import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
 import type { Workspace } from "@ai-coding-agent/types";
+import { createDockerWorkspace } from "./DockerWorkspace";
 import { createLocalWorkspace } from "./LocalWorkspace";
 
 export interface WorkspaceCreateInput {
   kind?: Workspace["kind"];
   /** Absolute directory the workspace wraps. Defaults to a scratch dir. */
   root?: string;
+  /** Docker image for "docker" kind. */
+  image?: string;
 }
 
 export interface WorkspaceManager {
@@ -24,14 +27,20 @@ export function createWorkspaceManager(): WorkspaceManager {
 
   async function create(input: WorkspaceCreateInput = {}): Promise<Workspace> {
     const kind = input.kind ?? "local";
-    if (kind !== "local") {
-      throw new Error(
-        `Workspace kind "${kind}" is not implemented yet (local is the only backend in M1)`
-      );
-    }
     const root = input.root ?? path.join(os.tmpdir(), "ai-coding-agent-default");
     await fs.mkdir(root, { recursive: true });
-    const workspace = createLocalWorkspace({ id: randomUUID(), root });
+    const id = randomUUID();
+
+    let workspace: Workspace;
+    if (kind === "docker") {
+      workspace = await createDockerWorkspace({ id, root, image: input.image });
+    } else if (kind === "local") {
+      workspace = createLocalWorkspace({ id, root });
+    } else {
+      throw new Error(
+        `Workspace kind "${kind}" is not implemented yet (local and docker are available in M2)`
+      );
+    }
     workspaces.set(workspace.id, workspace);
     return workspace;
   }

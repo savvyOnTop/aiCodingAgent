@@ -6,6 +6,7 @@ import { createWorkspaceManager } from "../workspace";
 import { authHook } from "./auth";
 import { registerRoutes } from "./routes";
 import { createSessionRegistry, type SessionRegistry } from "./session";
+import { registerTerminal } from "./terminal";
 
 export interface ServerOptions {
   auth?: boolean;
@@ -37,6 +38,7 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
   }
 
   registerRoutes(app, { conversations, sessions });
+  registerTerminal(app, { conversations, token: options.authToken });
   return app;
 }
 
@@ -52,3 +54,9 @@ if (require.main === module) {
     process.exit(1);
   });
 }
+
+export { createSseStream, type SseStream } from "./streaming";
+export { createSessionRegistry, type SessionRegistry } from "./session";
+export { registerTerminal, type TerminalOptions } from "./terminal";
+export { registerRoutes, type RouteDeps } from "./routes";
+export { authHook, type AuthOptions } from "./auth";
