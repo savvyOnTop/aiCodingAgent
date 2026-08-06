@@ -21,6 +21,15 @@ const fakeConversations = {
     callbacks.onDone?.();
   },
   confirm: () => true,
+  list: () => [
+    {
+      id: "conv-1",
+      workspaceId: "ws-1",
+      createdAt: 0,
+      branchId: "main",
+      parentId: null
+    }
+  ],
   history: () => [],
   listFiles: async () => [{ name: "a.ts", path: "a.ts", type: "file" }],
   terminate: () => {},
@@ -71,6 +80,30 @@ describe("gateway routes", () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().entries[0].path).toBe("a.ts");
+    await app.close();
+  });
+
+  it("lists sessions", async () => {
+    const app = await buildServer({ authToken: "secret", conversations: fakeConversations, sessions: createSessionRegistry() });
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/sessions",
+      headers: { authorization: "Bearer secret" }
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().sessions[0].id).toBe("conv-1");
+    await app.close();
+  });
+
+  it("deletes a session", async () => {
+    const app = await buildServer({ authToken: "secret", conversations: fakeConversations, sessions: createSessionRegistry() });
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/api/sessions/conv-1",
+      headers: { authorization: "Bearer secret" }
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().ok).toBe(true);
     await app.close();
   });
 });
