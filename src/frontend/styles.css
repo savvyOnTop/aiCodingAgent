@@ -192,6 +192,13 @@ body {
   color: #a7e8c5;
 }
 
+.msg.validation {
+  align-self: flex-start;
+  background: #1a2333;
+  border: 1px solid #2e4a78;
+  color: #b7c8e8;
+}
+
 button {
   padding: 6px 12px;
   border-radius: 6px;

@@ -118,6 +118,7 @@ export type SseEvent =
   | { type: "agent.tool_start"; callId: string; tool: string; input: Record<string, unknown> }
   | { type: "agent.tool_result"; callId: string; status: ToolResultStatus; output: string }
   | { type: "agent.confirm_request"; callId: string; tool: string; input: Record<string, unknown> }
+  | { type: "agent.validation"; checker: string; status: "passed" | "failed"; output: string }
   | { type: "agent.done"; summary: string; usage: ModelCallResult["usage"] | null }
   | { type: "agent.error"; message: string };
 

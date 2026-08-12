@@ -30,6 +30,7 @@ export interface ConversationServiceDeps {
 
 export interface ConversationService {
   create(input?: CreateConversationInput): Promise<ConversationRecord>;
+  list(): ConversationRecord[];
   streamMessage(conversationId: string, content: string, callbacks: StreamCallbacks): Promise<void>;
   confirm(conversationId: string, callId: string, approved: boolean): boolean;
   terminate(conversationId: string): void;
@@ -130,6 +131,10 @@ export function createConversationService(deps: ConversationServiceDeps): Conver
     callbacks.onDone?.(run);
   }
 
+  function list(): ConversationRecord[] {
+    return store.listConversations();
+  }
+
   function confirm(conversationId: string, callId: string, approved: boolean): boolean {
     const entry = pending.get(callId);
     if (!entry) return false;
@@ -193,5 +198,5 @@ export function createConversationService(deps: ConversationServiceDeps): Conver
     }));
   }
 
-  return { create, streamMessage, confirm, terminate, history, listFiles, getWorkspace, destroy };
+  return { create, list, streamMessage, confirm, terminate, history, listFiles, getWorkspace, destroy };
 }

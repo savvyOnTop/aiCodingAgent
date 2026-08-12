@@ -30,6 +30,17 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
     return reply.code(201).send({ sessionId: conversation.id });
   });
 
+  app.get("/api/sessions", async (_request, reply) => {
+    return reply.send({ sessions: conversations.list() });
+  });
+
+  app.delete("/api/sessions/:id", async (request, reply) => {
+    const conversationId = (request.params as { id: string }).id;
+    sessions.close(conversationId);
+    await conversations.destroy(conversationId);
+    return reply.send({ ok: true });
+  });
+
   app.post("/api/sessions/:id/messages", async (request, reply) => {
     const body = (request.body ?? {}) as SendMessageBody;
     if (!body.content?.trim()) {

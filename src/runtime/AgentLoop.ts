@@ -4,6 +4,7 @@ import type { PromptBuilder } from "./PromptBuilder";
 import type { ToolRegistry } from "./ToolRegistry";
 import { MaxIterationsError, type ModelRouter } from "../llm";
 import type { ExecutionPlan, PlannerEngine, TaskNode } from "../planner";
+import { buildRepairPrompt, hasFailures, type RepairLoop } from "../validation";
 
 export interface AgentInteractions {
   emit(event: SseEvent): void;
@@ -21,6 +22,8 @@ export interface AgentLoopOptions {
   /** When set, the run is planned up-front and replanned on task failure. */
   planner?: PlannerEngine;
   maxReplans?: number;
+  /** When set, tasks that mutate files are gated on validation before accepting. */
+  validation?: RepairLoop;
 }
 
 export interface RunInput {
@@ -48,6 +51,9 @@ const DEFAULT_MAX_ITERATIONS = 30;
 const DEFAULT_MAX_REPLANS = 3;
 const TOOL_RESULT_PREVIEW = 2000;
 const MAX_PLAN_CONTEXT_CHARS = 2000;
+
+/** Tools that change the workspace; only these trigger validation gates. */
+const MUTATING_TOOLS = new Set(["write_file", "run_command", "git_commit"]);
 
 /**
  * Fallback for models without native tool calling: if the reply is a single
@@ -219,6 +225,7 @@ export function createAgentLoop(options: AgentLoopOptions): AgentLoop {
     signal: AbortSignal | undefined,
     usageState: { usage: Usage | null }
   ): Promise<string> {
+    let mutated = false;
     for (let i = 0; i < maxIterations; i++) {
       if (signal?.aborted) throw new Error("Agent run aborted");
       const response = await router.complete({ messages, tools: registry.list(), signal });
@@ -230,6 +237,25 @@ export function createAgentLoop(options: AgentLoopOptions): AgentLoop {
       }
 
       if (toolCalls.length === 0) {
+        if (options.validation && mutated) {
+          const gate = await options.validation.run({ workspace: ctx.workspace, signal, mutated });
+          if (gate.gated) {
+            for (const result of gate.results) {
+              interactions.emit({
+                type: "agent.validation",
+                checker: result.checker,
+                status: result.status,
+                output: result.output
+              });
+            }
+            if (hasFailures(gate.results)) {
+              const failed = gate.results.filter((r) => r.status === "failed").map((r) => r.checker).join(", ");
+              interactions.emit({ type: "agent.thought", thought: `Validation failed (${failed}); fixing then re-validating.` });
+              messages.push({ role: "user", content: buildRepairPrompt(gate.results) });
+              continue;
+            }
+          }
+        }
         interactions.emit({ type: "agent.text_delta", delta: response.text ?? "" });
         messages.push({ role: "assistant", content: response.text ?? "" });
         return response.text ?? "";
@@ -277,6 +303,7 @@ export function createAgentLoop(options: AgentLoopOptions): AgentLoop {
         }
 
         const result = await registry.execute(call.name, call.input, ctx);
+        if (MUTATING_TOOLS.has(call.name)) mutated = true;
         const preview = result.output.slice(0, TOOL_RESULT_PREVIEW);
         interactions.emit({
           type: "agent.tool_result",

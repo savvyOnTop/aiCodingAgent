@@ -40,14 +40,14 @@ function readStderr(err: { stderr?: string; stdout?: string; message?: string })
 export function createDockerWorkspace(
   options: DockerWorkspaceOptions
 ): Promise<Workspace & { containerName: string; rootPath: string }> {
-  return (async () => {
-    const image = options.image ?? "node:22-alpine";
-    const containerName =
-      options.containerName ?? `aca-${options.id.slice(0, 12)}`;
-    const commandTimeoutMs = options.commandTimeoutMs ?? 120_000;
-    const root = path.resolve(options.root);
-    await fs.mkdir(root, { recursive: true });
+  const { id } = options;
+  const image = options.image ?? "node:22-alpine";
+  const containerName = options.containerName ?? `aca-${id.slice(0, 12)}`;
+  const commandTimeoutMs = options.commandTimeoutMs ?? 120_000;
+  const root = path.resolve(options.root);
 
+  return (async () => {
+    await fs.mkdir(root, { recursive: true });
     try {
       await runDocker(["run", "-d", "--name", containerName, "-v", `${root}:${MOUNT_PATH}`, "-w", MOUNT_PATH, image, "sleep", "infinity"], 120_000);
     } catch (err) {
@@ -63,8 +63,43 @@ export function createDockerWorkspace(
         throw new Error(`Docker workspace failed to start: ${message}`);
       }
     }
+    return buildDockerWorkspace({ id: options.id, containerName, root, commandTimeoutMs });
+  })();
+}
 
-    async function exec(command: string): Promise<CommandResult> {
+/**
+ * Re-attach to an existing container (M5 rehydration). Verifies the
+ * container actually exists before returning a usable workspace.
+ */
+export function attachDockerWorkspace(
+  options: Pick<DockerWorkspaceOptions, "id" | "root" | "containerName" | "commandTimeoutMs">
+): Promise<Workspace & { containerName: string; rootPath: string }> {
+  const { containerName } = options;
+  return (async () => {
+    if (!containerName) throw new Error("attachDockerWorkspace requires a containerName");
+    try {
+      await runDocker(["inspect", "--format", "{{.State.Running}}", containerName], 30_000);
+    } catch {
+      throw new Error(`No running container ${containerName}; cannot re-attach workspace`);
+    }
+    return buildDockerWorkspace({
+      id: options.id,
+      containerName,
+      root: path.resolve(options.root),
+      commandTimeoutMs: options.commandTimeoutMs ?? 120_000
+    });
+  })();
+}
+
+function buildDockerWorkspace(options: {
+  id: string;
+  containerName: string;
+  root: string;
+  commandTimeoutMs: number;
+}): Workspace & { containerName: string; rootPath: string } {
+  const { id, containerName, commandTimeoutMs } = options;
+
+  async function exec(command: string): Promise<CommandResult> {
       if (command.length > MAX_COMMAND_CHARS) {
         return { exitCode: 1, stdout: "", stderr: `Command too long (${command.length} chars, max ${MAX_COMMAND_CHARS})` };
       }
@@ -95,7 +130,7 @@ export function createDockerWorkspace(
     }
 
     return {
-      id: options.id,
+      id,
       kind: "docker" as const,
       rootPath: MOUNT_PATH,
       containerName,
@@ -162,5 +197,4 @@ export function createDockerWorkspace(
         await runDocker(["rm", "-f", containerName], 30_000).catch(() => {});
       }
     };
-  })();
 }

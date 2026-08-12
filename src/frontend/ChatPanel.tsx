@@ -4,7 +4,7 @@ import { confirmTool, streamMessage } from "./api";
 
 interface UiBlock {
   id: string;
-  kind: "user" | "assistant" | "tool" | "confirm" | "error" | "done";
+  kind: "user" | "assistant" | "tool" | "confirm" | "validation" | "error" | "done";
   content: string;
   callId?: string;
   tool?: string;
@@ -48,6 +48,8 @@ function applyEvent(blocks: UiBlock[], event: SseEvent): UiBlock[] {
       );
     case "agent.confirm_request":
       return [...blocks, { id: crypto.randomUUID(), kind: "confirm", content: "", callId: event.callId, tool: event.tool, input: event.input }];
+    case "agent.validation":
+      return [...blocks, { id: crypto.randomUUID(), kind: "validation", content: event.output, tool: event.checker, status: event.status }];
     case "agent.done":
       return [
         ...blocks,
@@ -132,6 +134,13 @@ function BlockView({
   if (block.kind === "user") return <div className="msg user">{block.content}</div>;
   if (block.kind === "assistant") return <div className="msg assistant">{block.content || "…"}</div>;
   if (block.kind === "error") return <div className="msg error">{block.content}</div>;
+  if (block.kind === "validation")
+    return (
+      <div className={`msg validation ${block.status ?? ""}`}>
+        <strong>{block.status === "failed" ? "✗" : "✓"} check: {block.tool}</strong>
+        {block.content ? <pre>{block.content}</pre> : null}
+      </div>
+    );
   if (block.kind === "done") return <div className="msg done">✓ {block.content || "Done."}{usageText(block.usage)}</div>;
   if (block.kind === "confirm") {
     return (
