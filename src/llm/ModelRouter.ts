@@ -1,4 +1,5 @@
 import type { ModelCallResult } from "@ai-coding-agent/types";
+import { computeCacheKey, type CacheRepository } from "../persistence";
 import { createClaudeAdapter } from "./ClaudeAdapter";
 import { createGeminiAdapter } from "./GeminiAdapter";
 import { createGPTAdapter } from "./GPTAdapter";
@@ -9,6 +10,8 @@ import { LlmError, type CompleteParams, type ModelAdapter } from "./types";
 export interface RouterOptions {
   adapters: ModelAdapter[];
   log?: (message: string) => void;
+  /** Phase 06: prompt cache consulted before provider calls. */
+  cache?: Pick<CacheRepository, "get" | "set">;
 }
 
 export interface ModelRouter {
@@ -32,9 +35,21 @@ export function createModelRouter(options: RouterOptions): ModelRouter {
     let lastError: unknown = null;
     for (const adapter of options.adapters) {
       if (!adapter.isConfigured()) continue;
+      const cacheKey = options.cache
+        ? computeCacheKey(`${adapter.provider}/${adapter.model}`, params.messages, params.tools)
+        : undefined;
+      if (cacheKey) {
+        const hit = options.cache!.get(cacheKey);
+        if (hit) {
+          log(`✓ cache hit ${adapter.provider}/${adapter.model}`);
+          return hit;
+        }
+      }
       try {
         log(`→ LLM call via ${adapter.provider}/${adapter.model}`);
-        return await adapter.complete(params);
+        const result = await adapter.complete(params);
+        if (cacheKey) options.cache!.set(cacheKey, result);
+        return result;
       } catch (err) {
         lastError = err;
         if (params.signal?.aborted) throw err;
@@ -54,7 +69,10 @@ export function createModelRouter(options: RouterOptions): ModelRouter {
 }
 
 /** Default priority chain: OpenRouter (free) → Gemini → Ollama → GPT → Claude. */
-export function createDefaultRouter(env: NodeJS.ProcessEnv = process.env): ModelRouter {
+export function createDefaultRouter(
+  env: NodeJS.ProcessEnv = process.env,
+  cache?: RouterOptions["cache"]
+): ModelRouter {
   return createModelRouter({
     adapters: [
       createOpenRouterAdapter(env),
@@ -62,6 +80,7 @@ export function createDefaultRouter(env: NodeJS.ProcessEnv = process.env): Model
       createOllamaAdapter(env),
       createGPTAdapter(env),
       createClaudeAdapter(env)
-    ]
+    ],
+    cache
   });
 }

@@ -1,6 +1,8 @@
 import cors from "@fastify/cors";
+import { DatabaseSync } from "node:sqlite";
 import Fastify, { type FastifyInstance } from "fastify";
 import { createConversationService, createMessageStore, type ConversationService } from "../conversation";
+import { createCacheRepository, createSqliteMessageStore, SCHEMA } from "../persistence";
 import { createAgentRuntime } from "../runtime";
 import { createWorkspaceManager } from "../workspace";
 import { authHook } from "./auth";
@@ -14,6 +16,8 @@ export interface ServerOptions {
   logger?: boolean;
   conversations?: ConversationService;
   sessions?: SessionRegistry;
+  /** SQLite file for persistent conversations/workspaces (M5). Omit for in-memory. */
+  dbPath?: string;
 }
 
 /** Gateway layer public API: a fully wired Fastify server. */
@@ -22,14 +26,31 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
 
   await app.register(cors, { origin: true });
 
-  const sessions = options.sessions ?? createSessionRegistry();
-  const conversations =
-    options.conversations ??
-    createConversationService({
-      runtime: createAgentRuntime(),
-      store: createMessageStore(),
-      workspaces: createWorkspaceManager()
+const sessions = options.sessions ?? createSessionRegistry();
+  let conversations = options.conversations;
+  if (!conversations) {
+    const sqlite = options.dbPath ? createSqliteMessageStore({ dbPath: options.dbPath }) : undefined;
+    const store = sqlite ?? createMessageStore();
+    const workspaces = createWorkspaceManager({
+      store: sqlite
+        ? {
+            saveWorkspace: (r) => sqlite.saveWorkspace(r),
+            deleteWorkspaceRecord: (id) => sqlite.deleteWorkspaceRecord(id)
+          }
+        : undefined
     });
+    if (sqlite) {
+      await workspaces.rehydrate(sqlite.listWorkspaceRecords());
+    }
+    const cacheDb = new DatabaseSync(options.dbPath ?? ":memory:");
+    cacheDb.exec(SCHEMA);
+    const cache = createCacheRepository(cacheDb);
+    conversations = createConversationService({
+      runtime: createAgentRuntime({ cache }),
+      store,
+      workspaces
+    });
+  }
 
   if (options.auth !== false) {
     app.addHook("onRequest", async (request, reply) => {
