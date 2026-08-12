@@ -1,6 +1,6 @@
 # Phase 04 — Patch Engine
 
-**Status:** ✅ Done — uncommitted (working tree)
+**Status:** ✅ Done — commit `2a81aa6` ("M4 completed")
 
 ## Goal
 
@@ -49,7 +49,3 @@ syntactic edit path for precise single-symbol changes.
 ```bash
 pnpm test src/patch && pnpm typecheck && pnpm lint
 ```
-
-## Next step
-
-Commit this phase (`M4 completed`), then proceed to Phase 05.

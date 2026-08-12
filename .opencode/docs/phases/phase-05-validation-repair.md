@@ -1,6 +1,6 @@
 # Phase 05 — Validation & Repair Loop
 
-**Status:** ✅ Done — uncommitted (working tree)
+**Status:** ✅ Done — commit `f867d3b` ("M5 completed")
 
 ## Goal
 
@@ -14,8 +14,7 @@ model for repair — iterating until green or giving up after N attempts.
   - `ValidationRunner` — runs a suite of runner steps against the workspace and
     produces a pass/fail summary with captured output.
   - `Runners` — wires up the concrete checkers:
-    - `BuildRunner` (phase 05 placeholder in `Runners.ts`; dedicated file in
-      Phase 05 completion — see note) — executes the project build command.
+    - `BuildRunner` — executes the project build command.
     - `TestRunner` — executes the test command.
     - `LintRunner` — executes the lint command.
   - `RepairLoop` — given a failure summary, asks the model for a patch, applies
@@ -25,8 +24,8 @@ model for repair — iterating until green or giving up after N attempts.
 - **Tests**: `Validation.test.ts` (8), `ValidationLoop.test.ts` (2).
 
 > Note: `BuildRunner.ts`, `TestRunner.ts`, `LintRunner.ts` exist as thin
-> `CommandRunner` factories today via `Runners.ts`; if dedicated per-command
-> logic (artifacts, retry, coverage parsing) is wanted, it lands in Phase 06.
+> `CommandRunner` factories via `Runners.ts`; if dedicated per-command logic
+> (artifacts, retry, coverage parsing) is wanted later, it extends `Runners.ts`.
 
 ## Key decisions
 
@@ -49,7 +48,3 @@ model for repair — iterating until green or giving up after N attempts.
 ```bash
 pnpm test src/validation src/runtime && pnpm typecheck && pnpm lint
 ```
-
-## Next step
-
-Commit this phase (`M5 completed`), then proceed to Phase 06.

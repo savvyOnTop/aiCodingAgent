@@ -366,9 +366,9 @@ Implemented / planned milestones mapped to layers:
 | 01 Foundation | frontend, gateway, conversation, llm | ✅ `253dc1b` |
 | 02 Workspaces+Terminal | workspace, terminal | ✅ `4e8c6fa` |
 | 03 Planning | planner, runtime | ✅ `bcc5fa7` |
-| 04 Patch | patch | ✅ (uncommitted) |
-| 05 Validation+Repair | validation, runtime | ✅ (uncommitted) |
-| 06 Persistence | persistence, gateway | 🟡 partial |
+| 04 Patch | patch | ✅ `2a81aa6` |
+| 05 Validation+Repair | validation, runtime | ✅ `f867d3b` |
+| 06 Persistence | persistence, gateway, llm | ✅ `87901e8` |
 | 07 Deep context | runtime | ⬜ |
 | 08 Branching+Memory | conversation | ⬜ |
 | 09 Tools | tools | 🟡 partial |

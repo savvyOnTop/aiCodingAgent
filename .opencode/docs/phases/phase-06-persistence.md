@@ -1,6 +1,7 @@
 # Phase 06 — Persistence & Repositories
 
-**Status:** 🟡 In progress — SQLite store + workspace rehydration done
+**Status:** ✅ Done — commit `87901e8` ("M6 completed"); SQLite store +
+rehydration shipped with `f867d3b` ("M5 completed")
 
 ## Goal
 
@@ -27,22 +28,35 @@ survives.
   (`src/gateway/index.ts:31`).
 - **Tests**: `SqliteStore.test.ts` (7), `WorkspaceManager.test.ts` (3).
 
-## Remaining deliverables
+## Delivered
 
-- **`ConversationRepository.ts`** — typed CRUD over conversations/messages on
-  top of SqliteStore: soft-delete, archival, paginated history. The primary
-  API for the gateway beyond the raw `MessageStore`.
+- **`ConversationRepository.ts`** — typed CRUD over conversations on top of
+  SqliteStore: `create`/`get`/`list` (newest-first, excludes soft-deleted by
+  default, `includeDeleted` option), `softDelete`/`restore`, cascade
+  `hardDelete`, and paginated `history(conversationId, { limit, offset })`
+  sharing the same tables as `SqliteMessageStore`.
 - **`CacheRepository.ts`** — prompt/response cache keyed by
-  `model + normalized task hash`; TTL and cap; consulted before an LLM call in
-  `ModelRouter` (cache hit = return stored response, else record).
-- **`EmbeddingRepository.ts`** — append/query real-number vectors per code
-  chunk; feeds Phase 07 semantic search and Phase 08 memory
-  (schema `embedding (id, content_ref, model, dimensions, vector blob)`).
-- **`TraceRepository.ts`** — append-run/tool-call traces (conversation_id,
-  step, tool, args-summary, latency, outcome) with list/filter for an
-  observability endpoint; feeds Phase 10 hardening.
-- Update `persistence/index.ts` to export all four.
-- Extend `SqliteStore` schema + store tests for the new tables.
+  `provider/model + sha256(message+tools)` via `computeCacheKey`; TTL expiry
+  (pruned lazily on access and on write), hard cap with oldest-entry eviction
+  (configurable `maxEntries`), persistence across reopen.
+- **`EmbeddingRepository.ts`** — per model+contentRef vector rows
+  (`content_hash` for staleness detection), upsert-on-conflict, and
+  `similar(vec, model, k)` cosine ranking in-process (no sqlite vector
+  extension needed); feeds Phase 07 semantic ranking and Phase 08 memory.
+- **`TraceRepository.ts`** — one row per dispatched tool call / model turn
+  (`conversation_id`, `step`, `tool`, `tool_args`, `outcome`, `latency_ms`);
+  per-conversation listing and paginated global listing newest-first.
+- **Schema** — `src/persistence/schema.ts` is now the single source of truth
+  (shared with `SqliteStore`); adds `conversations.deleted_at` (soft delete)
+  and the `llm_cache` / `embeddings` / `traces` tables.
+- **`ModelRouter` integration** — optional `cache` in `RouterOptions`;
+  `complete()` checks the cache per adapter before calling and stores results
+  on success; `createDefaultRouter(env, cache)` threads it through
+  `AgentRuntime({ cache })` and the gateway (`buildServer` creates a cache
+  repository on the same dbPath).
+- **Tests**: repository tests (conversation 6, cache 7, embeddings 6, traces
+  4) + 2 `ModelRouter` cache tests (hit short-circuits the adapter; failover
+  caches per provider).
 
 ## Key decisions
 
@@ -55,12 +69,12 @@ survives.
 
 ## Acceptance criteria
 
-- [ ] All four repositories implemented with SQLite-backed tests
-- [ ] Cache hits short-circuit `ModelRouter`
-- [ ] Embedding rows round-trip (store → query)
-- [ ] Traces queryable for a conversation
-- [ ] `pnpm test` / `pnpm typecheck` / `pnpm lint` all green
-- [ ] Commit as `M6 completed`
+- [x] All four repositories implemented with SQLite-backed tests
+- [x] Cache hits short-circuit `ModelRouter`
+- [x] Embedding rows round-trip (store → query)
+- [x] Traces queryable for a conversation
+- [x] `pnpm test` / `pnpm typecheck` / `pnpm lint` all green
+- [x] Committed as `M6 completed` (`87901e8`)
 
 ## Verification
 
