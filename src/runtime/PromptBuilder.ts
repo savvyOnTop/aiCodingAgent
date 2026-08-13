@@ -51,6 +51,15 @@ export function createPromptBuilder(options: PromptBuilderOptions = {}): PromptB
     if (input.context.keyFiles) {
       contextText += `\nRelevant files:\n${input.context.keyFiles}\n`;
     }
+    const index = input.context.index;
+    if (index && Object.keys(index).length > 0) {
+      const files = Object.keys(index).length;
+      const used = Object.values(index).reduce((sum, entry) => sum + entry.chars, 0);
+      contextText +=
+        `--- context: ${used} of ${input.context.maxContextChars} chars budget across ` +
+        `${files} indexed files; ${input.context.skippedFiles} files skipped; ` +
+        `${input.context.truncatedFileCount} truncated ---\n`;
+    }
     if (contextText.length > maxContextChars) {
       contextText = contextText.slice(0, maxContextChars) + "\n[context truncated]";
     }

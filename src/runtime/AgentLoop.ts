@@ -135,7 +135,7 @@ export function createAgentLoop(options: AgentLoopOptions): AgentLoop {
   }
 
   async function run(input: RunInput, signal?: AbortSignal): Promise<RunResult> {
-    const loaded: LoadedContext = await contextLoader.load(input.workspace);
+    const loaded: LoadedContext = await contextLoader.load(input.workspace, { task: input.task });
     const messages: ChatMessage[] = promptBuilder.build({
       task: input.task,
       context: loaded,
