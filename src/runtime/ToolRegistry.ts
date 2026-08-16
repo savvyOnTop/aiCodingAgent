@@ -88,16 +88,19 @@ export function createToolRegistry(options: ToolRegistryOptions = {}): ToolRegis
     if (validationError) return { status: "error", output: validationError };
     try {
       const result = await tool.execute(input, ctx);
-      if (result.output.length > maxOutputChars) {
+      // phase 10 hardening: every tool's output is redacted centrally so a
+      // tool that forgets ctx.redact still can't leak secrets to the model/UI
+      const output = ctx.redact(result.output);
+      if (output.length > maxOutputChars) {
         return {
           ...result,
-          output: result.output.slice(0, maxOutputChars) + "\n[output truncated]",
+          output: output.slice(0, maxOutputChars) + "\n[output truncated]",
           truncated: true
         };
       }
-      return result;
+      return { ...result, output };
     } catch (err) {
-      return { status: "error", output: err instanceof Error ? err.message : String(err) };
+      return { status: "error", output: ctx.redact(err instanceof Error ? err.message : String(err)) };
     }
   }
 

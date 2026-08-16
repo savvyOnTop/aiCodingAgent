@@ -12,6 +12,7 @@ import type { AgentRuntime, RunResult } from "../runtime";
 import type { WorkspaceManager } from "../workspace";
 import type { MemoryService } from "./MemoryService";
 import type { MessageStore } from "./MessageStore";
+import { createSecretRedactor } from "./redaction";
 
 export interface CreateConversationInput {
   root?: string;
@@ -52,7 +53,6 @@ interface PendingConfirmation {
   timer: ReturnType<typeof setTimeout>;
 }
 
-const SECRET_KEY_HINT = /(KEY|TOKEN|SECRET|PASSWORD|AUTH)/;
 
 /**
  * Conversation layer: owns the message store, creates sessions with their
@@ -105,13 +105,7 @@ export function createConversationService(deps: ConversationServiceDeps): Conver
     const controller = new AbortController();
     controllers.set(conversationId, controller);
 
-    const redact = (text: string): string => {
-      let out = text;
-      for (const [key, value] of Object.entries(process.env)) {
-        if (value && SECRET_KEY_HINT.test(key)) out = out.split(value).join("***");
-      }
-      return out;
-    };
+    const redact = createSecretRedactor();
 
     const recalled = memory ? memory.recall(content).map((r) => r.summary) : undefined;
     const run = await runtime.run(

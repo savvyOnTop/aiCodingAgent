@@ -15,6 +15,7 @@ export {
   type MergeResult,
   type MergeConflict
 } from "./BranchService";
+export { createSecretRedactor, type Redactor } from "./redaction";
 export {
   createMemoryService,
   type MemoryService,

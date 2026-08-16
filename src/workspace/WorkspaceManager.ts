@@ -4,6 +4,11 @@ import os from "os";
 import path from "path";
 import type { Workspace } from "@ai-coding-agent/types";
 import { attachDockerWorkspace, createDockerWorkspace } from "./DockerWorkspace";
+import {
+  attachFirecrackerWorkspace,
+  createFirecrackerWorkspace,
+  type FirecrackerWorkspace
+} from "./FirecrackerWorkspace";
 import { createLocalWorkspace } from "./LocalWorkspace";
 
 export interface WorkspaceCreateInput {
@@ -12,6 +17,8 @@ export interface WorkspaceCreateInput {
   root?: string;
   /** Docker image for "docker" kind. */
   image?: string;
+  /** Runner CLI for "firecracker" kind; defaults to FIRECRACKER_BIN. */
+  firecrackerBin?: string;
 }
 
 export interface WorkspaceManager {
@@ -57,18 +64,28 @@ export function createWorkspaceManager(options: {
       workspace = await createDockerWorkspace({ id, root, image: input.image });
     } else if (kind === "local") {
       workspace = createLocalWorkspace({ id, root });
+    } else if (kind === "firecracker") {
+      const bin = input.firecrackerBin ?? process.env.FIRECRACKER_BIN;
+      if (!bin) {
+        throw new Error(
+          'Workspace kind "firecracker" is opt-in: set FIRECRACKER_BIN to the runner CLI'
+        );
+      }
+      workspace = await createFirecrackerWorkspace({ id, root, bin });
     } else {
-      throw new Error(
-        `Workspace kind "${kind}" is not implemented yet (local and docker are available in M2)`
-      );
+      throw new Error(`Unknown workspace kind "${kind}"`);
     }
     workspaces.set(workspace.id, workspace);
     const withContainer = workspace as Workspace & { containerName?: string };
+    const handle =
+      workspace.kind === "firecracker"
+        ? (workspace as FirecrackerWorkspace).recordHandle()
+        : withContainer.containerName;
     store?.saveWorkspace({
       id: workspace.id,
       kind: workspace.kind as WorkspaceStoreRecord["kind"],
       root,
-      containerName: withContainer.containerName,
+      containerName: handle,
       createdAt: Date.now()
     });
     return workspace;
@@ -104,6 +121,16 @@ export function createWorkspaceManager(options: {
         } else if (record.kind === "local") {
           await fs.mkdir(record.root, { recursive: true });
           workspaces.set(record.id, createLocalWorkspace({ id: record.id, root: record.root }));
+        } else if (record.kind === "firecracker") {
+          if (!process.env.FIRECRACKER_BIN || !record.containerName) {
+            throw new Error("firecracker rehydration needs FIRECRACKER_BIN and a stored handle");
+          }
+          const ws = await attachFirecrackerWorkspace({
+            id: record.id,
+            root: record.root,
+            handle: record.containerName
+          });
+          workspaces.set(ws.id, ws);
         }
       } catch (err) {
         // Re-attach failures are not fatal: the workspace is dropped and

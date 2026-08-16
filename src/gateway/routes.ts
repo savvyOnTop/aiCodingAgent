@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { BranchService, ConversationService, MemoryService } from "../conversation";
 import { searchWorkspace } from "../tools";
+import { sendError, toMessage } from "./errors";
 import { createSseStream } from "./streaming";
 import type { SessionRegistry } from "./session";
 
@@ -62,11 +63,19 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
   app.post("/api/sessions/:id/messages", async (request, reply) => {
     const body = (request.body ?? {}) as SendMessageBody;
     if (!body.content?.trim()) {
-      return reply.code(400).send({ error: "content is required" });
+      return sendError(reply, "bad_request", "content is required");
     }
     const conversationId = (request.params as { id: string }).id;
     const stream = createSseStream(request, reply);
-    sessions.attach(conversationId, stream);
+    try {
+      sessions.attach(conversationId, stream);
+    } catch (err) {
+      // stream cap reached: the SSE response is already hijacked, so surface
+      // the rejection as a terminal event instead of an HTTP status
+      stream.send({ type: "agent.error", message: toMessage(err) });
+      stream.close();
+      return reply;
+    }
 
     conversations
       .streamMessage(conversationId, body.content, {
@@ -103,13 +112,13 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
   app.get("/api/sessions/:id/search", async (request, reply) => {
     const conversationId = (request.params as { id: string }).id;
     const query = (request.query as { q?: string }).q ?? "";
-    if (!query.trim()) return reply.code(400).send({ error: "q is required" });
+    if (!query.trim()) return sendError(reply, "bad_request", "q is required");
     try {
       const workspace = conversations.getWorkspace(conversationId);
       const matches = await searchWorkspace(workspace, query, { maxResults: 50 });
       return reply.send({ matches });
     } catch (err) {
-      return reply.code(404).send({ error: err instanceof Error ? err.message : String(err) });
+      return sendError(reply, "not_found", toMessage(err));
     }
   });
 
@@ -120,7 +129,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
       const entries = await conversations.listFiles(conversationId, path);
       return reply.send({ entries });
     } catch (err) {
-      return reply.code(404).send({ error: err instanceof Error ? err.message : String(err) });
+      return sendError(reply, "not_found", toMessage(err));
     }
   });
 
@@ -139,7 +148,7 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
         const fork = await branches.fork(conversationId, body.name);
         return reply.code(201).send({ sessionId: fork.id, branchId: fork.branchId });
       } catch (err) {
-        return reply.code(404).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendError(reply, "not_found", toMessage(err));
       }
     });
 
@@ -150,31 +159,31 @@ export function registerRoutes(app: FastifyInstance, deps: RouteDeps): void {
         const active = branches.active(conversationId);
         return reply.send({ tree, active: { sessionId: active.id, branchId: active.branchId } });
       } catch (err) {
-        return reply.code(404).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendError(reply, "not_found", toMessage(err));
       }
     });
 
     app.post("/api/sessions/:id/switch", async (request, reply) => {
       const conversationId = (request.params as { id: string }).id;
       const body = (request.body ?? {}) as SwitchBody;
-      if (!body.branchId) return reply.code(400).send({ error: "branchId is required" });
+      if (!body.branchId) return sendError(reply, "bad_request", "branchId is required");
       try {
         const target = branches.switch(conversationId, body.branchId);
         return reply.send({ sessionId: target.id, branchId: target.branchId });
       } catch (err) {
-        return reply.code(404).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendError(reply, "not_found", toMessage(err));
       }
     });
 
     app.post("/api/branches/:id/merge", async (request, reply) => {
       const sourceBranchId = (request.params as { id: string }).id;
       const body = (request.body ?? {}) as MergeBody;
-      if (!body.into) return reply.code(400).send({ error: "into (target branch id) is required" });
+      if (!body.into) return sendError(reply, "bad_request", "into (target branch id) is required");
       try {
         const result = await branches.merge(sourceBranchId, body.into);
         return reply.send(result);
       } catch (err) {
-        return reply.code(404).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendError(reply, "not_found", toMessage(err));
       }
     });
   }

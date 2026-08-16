@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import type { IncomingMessage, Server } from "http";
 import * as pty from "node-pty";
 import { WebSocketServer, type WebSocket } from "ws";
-import type { ConversationService } from "../conversation";
+import { createSecretRedactor, type ConversationService } from "../conversation";
 
 export interface TerminalOptions {
   conversations: ConversationService;
@@ -94,8 +94,10 @@ export function registerTerminal(app: FastifyInstance, options: TerminalOptions)
     }
 
     sessions.set(conversationId, { ws, proc });
+    // phase 10 hardening: terminal echoes are scrubbed of env secrets too
+    const redact = createSecretRedactor();
     proc.onData((data) => {
-      if (ws.readyState === ws.OPEN) ws.send(data);
+      if (ws.readyState === ws.OPEN) ws.send(redact(data));
     });
     proc.onExit((code) => {
       if (ws.readyState === ws.OPEN) {

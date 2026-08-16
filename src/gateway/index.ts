@@ -15,6 +15,8 @@ import { createCacheRepository, createMemoryRepository, createSqliteMessageStore
 import { createAgentRuntime } from "../runtime";
 import { createWorkspaceManager } from "../workspace";
 import { authHook } from "./auth";
+import { sendError, toMessage } from "./errors";
+import { createRateLimiter } from "./rateLimit";
 import { registerRoutes } from "./routes";
 import { createSessionRegistry, type SessionRegistry } from "./session";
 import { registerTerminal } from "./terminal";
@@ -29,6 +31,8 @@ export interface ServerOptions {
   memory?: MemoryService;
   /** SQLite file for persistent conversations/workspaces (M5). Omit for in-memory. */
   dbPath?: string;
+  /** Requests per token/IP per minute on API routes (phase 10). Pass null to disable. */
+  rateLimit?: { max?: number; windowMs?: number } | null;
 }
 
 /** Gateway layer public API: a fully wired Fastify server. */
@@ -79,6 +83,21 @@ const sessions = options.sessions ?? createSessionRegistry();
     });
   }
 
+  if (options.rateLimit !== null) {
+    const limiter = createRateLimiter(options.rateLimit ?? {});
+    app.addHook("onRequest", async (request, reply) => {
+      if (!request.url.startsWith("/api/")) return;
+      const key = request.headers.authorization ?? request.ip;
+      if (!limiter.allow(key)) {
+        return sendError(reply, "rate_limited", "too many requests");
+      }
+    });
+  }
+
+  app.setErrorHandler((err, _request, reply) => {
+    return sendError(reply, "internal", toMessage(err));
+  });
+
   registerRoutes(app, { conversations, sessions, branches, memory });
   registerTerminal(app, { conversations, token: options.authToken });
   return app;
@@ -97,8 +116,10 @@ if (require.main === module) {
   });
 }
 
-export { createSseStream, type SseStream } from "./streaming";
-export { createSessionRegistry, type SessionRegistry } from "./session";
+export { createSseStream, type SseStream, type SseStreamOptions } from "./streaming";
+export { createSessionRegistry, type SessionRegistry, type SessionRegistryOptions } from "./session";
 export { registerTerminal, type TerminalOptions } from "./terminal";
 export { registerRoutes, type RouteDeps } from "./routes";
 export { authHook, type AuthOptions } from "./auth";
+export { createRateLimiter, type RateLimiter, type RateLimiterOptions } from "./rateLimit";
+export { sendError, toMessage, type GatewayError, type GatewayErrorCode } from "./errors";
