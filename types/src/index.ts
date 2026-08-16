@@ -66,6 +66,8 @@ export interface Tool {
   name: string;
   description: string;
   requiresConfirmation: boolean;
+  /** True when the tool mutates workspace or repository state (phase 09). */
+  destructive?: boolean;
   inputSchema: Record<string, unknown>;
   execute(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult>;
 }

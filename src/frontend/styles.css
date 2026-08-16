@@ -50,6 +50,75 @@ body {
   font-size: 12px;
 }
 
+.branch-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.branch-badge {
+  background: #1f3d2b;
+  color: #7ee2a8;
+  border: 1px solid #2e5c40;
+  border-radius: 10px;
+  padding: 2px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.branch-controls select {
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid #2c313c;
+  background: #1a1e27;
+  color: inherit;
+}
+
+.search-form input {
+  width: 100%;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+  border-radius: 6px;
+  border: 1px solid #2c313c;
+  background: #1a1e27;
+  color: inherit;
+  box-sizing: border-box;
+}
+
+.search-results {
+  overflow-y: auto;
+  font-size: 12px;
+}
+
+.search-results-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #7d8590;
+  margin-bottom: 6px;
+}
+
+.search-hit {
+  padding: 3px 4px;
+  border-radius: 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.search-hit:hover {
+  background: #1a1e27;
+}
+
+.search-hit-loc {
+  color: #7ee2a8;
+  margin-right: 6px;
+}
+
+.search-hit-text {
+  color: #9da5b4;
+}
+
 .app-body {
   display: flex;
   flex: 1;

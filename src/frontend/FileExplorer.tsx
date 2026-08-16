@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { listFiles, type FileEntryDto } from "./api";
+import { listFiles, searchFiles, type FileEntryDto, type SearchMatchDto } from "./api";
 
 interface TreeNode {
   entry: FileEntryDto;
@@ -11,6 +11,22 @@ interface TreeNode {
 export function FileExplorer({ sessionId }: { sessionId: string }) {
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchMatchDto[] | null>(null);
+
+  async function runSearch() {
+    const q = query.trim();
+    if (!q) {
+      setResults(null);
+      return;
+    }
+    try {
+      const { matches } = await searchFiles(sessionId, q);
+      setResults(matches);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
 
   const load = useCallback(
     async (path: string) => {
@@ -64,11 +80,48 @@ export function FileExplorer({ sessionId }: { sessionId: string }) {
   return (
     <aside className="files">
       <h3>Files</h3>
+      <form
+        className="search-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void runSearch();
+        }}
+      >
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search code…"
+        />
+      </form>
       {error && <p className="error">{error}</p>}
-      {tree.map((node, i) => (
+      {results !== null && (
+        <div className="search-results">
+          <div className="search-results-head">
+            <span>{results.length} results</span>
+            <button
+              type="button"
+              onClick={() => {
+                setResults(null);
+                setQuery("");
+              }}
+            >
+              ✕
+            </button>
+          </div>
+          {results.map((m, i) => (
+            <div key={`${m.file}:${m.line}:${i}`} className="search-hit" title={m.text}>
+              <span className="search-hit-loc">
+                {m.file}:{m.line}
+              </span>
+              <span className="search-hit-text">{m.text.trim()}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {results === null && tree.map((node, i) => (
         <TreeRow key={node.entry.path} node={node} onToggle={() => void toggle(node, i)} />
       ))}
-      {tree.map(
+      {results === null && tree.map(
         (node) =>
           node.open &&
           node.children?.map((child, ci) => (

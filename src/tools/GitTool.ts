@@ -35,6 +35,7 @@ const gitCommit: Tool = {
   name: "git_commit",
   description: "Stage all changes and create a git commit with the given message.",
   requiresConfirmation: true,
+  destructive: true,
   inputSchema: {
     type: "object",
     properties: { message: { type: "string", description: "Commit message" } },

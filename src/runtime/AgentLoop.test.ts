@@ -71,7 +71,12 @@ describe("AgentLoop", () => {
     });
 
     expect(await readFile(path.join(root, "hello.txt"), "utf8")).toBe("hi");
-    expect(events.map((e) => e.type)).toEqual(["agent.tool_start", "agent.tool_result", "agent.text_delta"]);
+    expect(events.map((e) => e.type)).toEqual([
+      "agent.tool_start",
+      "agent.confirm_request",
+      "agent.tool_result",
+      "agent.text_delta"
+    ]);
     expect(result.summary).toBe("all done");
     expect(result.transcript.at(-1)?.content).toBe("all done");
     await rm(root, { recursive: true, force: true });
@@ -106,6 +111,38 @@ describe("AgentLoop", () => {
     expect(events.find((e) => e.type === "agent.tool_result")?.output).toMatch(/denied/i);
     await expect(readFile(path.join(root, "pwned.txt"), "utf8")).rejects.toThrow();
     expect(result.summary).toBe("ok");
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("gates write_file behind confirmation via its permission flag", async () => {
+    const events: SseEvent[] = [];
+    const interactions: AgentInteractions = {
+      emit: (e) => events.push(e),
+      requestConfirmation: vi.fn(async () => false)
+    };
+    const router = {
+      complete: vi
+        .fn()
+        .mockResolvedValueOnce(modelResult(null, [{ id: "c1", name: "write_file", input: { path: "no.txt", content: "x" } }]))
+        .mockResolvedValueOnce(modelResult("ok", []))
+    };
+    const { loop, ws, root, registry } = await makeLoop(router as never, interactions);
+
+    await loop.run({
+      task: "write it",
+      history: [{ role: "user", content: "write it" }],
+      workspace: ws,
+      sessionId: "s",
+      cwd: ".",
+      redact: (t) => t
+    });
+
+    expect(interactions.requestConfirmation).toHaveBeenCalledOnce();
+    await expect(readFile(path.join(root, "no.txt"), "utf8")).rejects.toThrow();
+    const flags = registry.permissions().find((p) => p.tool === "write_file");
+    expect(flags).toEqual({ tool: "write_file", destructive: true, needsConfirmation: true });
+    const readFlags = registry.permissions().find((p) => p.tool === "read_file");
+    expect(readFlags).toEqual({ tool: "read_file", destructive: false, needsConfirmation: false });
     await rm(root, { recursive: true, force: true });
   });
 

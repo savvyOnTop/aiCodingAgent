@@ -18,8 +18,45 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function createSession(root?: string): Promise<{ sessionId: string }> {
+export async function createSession(root?: string): Promise<{ sessionId: string; branchId: string }> {
   return request("/api/sessions", { method: "POST", body: JSON.stringify({ root }) });
+}
+
+export interface BranchDto {
+  sessionId: string;
+  branchId: string;
+  parentId: string | null;
+}
+
+export interface BranchNodeDto {
+  conversation: { id: string; branchId: string; parentId: string | null; createdAt: number };
+  children: BranchNodeDto[];
+}
+
+export async function forkSession(
+  sessionId: string,
+  name?: string
+): Promise<{ sessionId: string; branchId: string }> {
+  return request(`/api/sessions/${sessionId}/branch`, {
+    method: "POST",
+    body: JSON.stringify({ name })
+  });
+}
+
+export async function listBranches(
+  sessionId: string
+): Promise<{ tree: BranchNodeDto; active: { sessionId: string; branchId: string } }> {
+  return request(`/api/sessions/${sessionId}/branches`);
+}
+
+export async function switchBranch(
+  sessionId: string,
+  branchId: string
+): Promise<{ sessionId: string; branchId: string }> {
+  return request(`/api/sessions/${sessionId}/switch`, {
+    method: "POST",
+    body: JSON.stringify({ branchId })
+  });
 }
 
 export async function confirmTool(
@@ -42,6 +79,21 @@ export interface FileEntryDto {
 export async function listFiles(sessionId: string, path = ""): Promise<{ entries: FileEntryDto[] }> {
   const query = path ? `?path=${encodeURIComponent(path)}` : "";
   return request(`/api/sessions/${sessionId}/files${query}`);
+}
+
+export interface SearchMatchDto {
+  file: string;
+  line: number;
+  column: number;
+  text: string;
+  score: number;
+}
+
+export async function searchFiles(
+  sessionId: string,
+  query: string
+): Promise<{ matches: SearchMatchDto[] }> {
+  return request(`/api/sessions/${sessionId}/search?q=${encodeURIComponent(query)}`);
 }
 
 export interface MessageDto {

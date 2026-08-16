@@ -4,11 +4,19 @@ export interface ToolRegistryOptions {
   maxOutputChars?: number;
 }
 
+export interface ToolPermission {
+  tool: string;
+  destructive: boolean;
+  needsConfirmation: boolean;
+}
+
 export interface ToolRegistry {
   register(tool: Tool): void;
   registerAll(tools: Tool[]): void;
   get(name: string): Tool | undefined;
   list(): ModelToolSchema[];
+  /** Permission classification of every registered tool (phase 09): data, not if-chains. */
+  permissions(): ToolPermission[];
   validate(tool: Tool, input: Record<string, unknown>): string | null;
   execute(name: string, input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult>;
 }
@@ -41,6 +49,14 @@ export function createToolRegistry(options: ToolRegistryOptions = {}): ToolRegis
       name: t.name,
       description: t.description,
       inputSchema: t.inputSchema
+    }));
+  }
+
+  function permissions(): ToolPermission[] {
+    return [...tools.values()].map((t) => ({
+      tool: t.name,
+      destructive: t.destructive === true,
+      needsConfirmation: t.requiresConfirmation
     }));
   }
 
@@ -85,5 +101,5 @@ export function createToolRegistry(options: ToolRegistryOptions = {}): ToolRegis
     }
   }
 
-  return { register, registerAll, get, list, validate, execute };
+  return { register, registerAll, get, list, permissions, validate, execute };
 }

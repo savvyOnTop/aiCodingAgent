@@ -29,7 +29,8 @@ const writeFile: Tool = {
   name: "write_file",
   description:
     "Create or overwrite a file in the workspace with the given content. Creates parent directories. Paths are relative to the workspace root.",
-  requiresConfirmation: false,
+  requiresConfirmation: true,
+  destructive: true,
   inputSchema: {
     type: "object",
     properties: {

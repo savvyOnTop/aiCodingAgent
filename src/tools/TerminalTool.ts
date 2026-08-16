@@ -5,6 +5,7 @@ const runCommand: Tool = {
   description:
     "Run a shell command inside the workspace (e.g. install dependencies, run tests, inspect files). Output is truncated at 200KB. Secrets are redacted.",
   requiresConfirmation: true,
+  destructive: true,
   inputSchema: {
     type: "object",
     properties: {

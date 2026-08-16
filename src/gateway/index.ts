@@ -1,8 +1,17 @@
 import cors from "@fastify/cors";
 import { DatabaseSync } from "node:sqlite";
 import Fastify, { type FastifyInstance } from "fastify";
-import { createConversationService, createMessageStore, type ConversationService } from "../conversation";
-import { createCacheRepository, createSqliteMessageStore, SCHEMA } from "../persistence";
+import {
+  createBranchService,
+  createConversationService,
+  createMemoryService,
+  createMessageStore,
+  type BranchService,
+  type ConversationService,
+  type MemoryService
+} from "../conversation";
+import { createDefaultRouter } from "../llm";
+import { createCacheRepository, createMemoryRepository, createSqliteMessageStore, SCHEMA } from "../persistence";
 import { createAgentRuntime } from "../runtime";
 import { createWorkspaceManager } from "../workspace";
 import { authHook } from "./auth";
@@ -16,6 +25,8 @@ export interface ServerOptions {
   logger?: boolean;
   conversations?: ConversationService;
   sessions?: SessionRegistry;
+  branches?: BranchService;
+  memory?: MemoryService;
   /** SQLite file for persistent conversations/workspaces (M5). Omit for in-memory. */
   dbPath?: string;
 }
@@ -28,6 +39,8 @@ export async function buildServer(options: ServerOptions = {}): Promise<FastifyI
 
 const sessions = options.sessions ?? createSessionRegistry();
   let conversations = options.conversations;
+  let branches = options.branches;
+  let memory = options.memory;
   if (!conversations) {
     const sqlite = options.dbPath ? createSqliteMessageStore({ dbPath: options.dbPath }) : undefined;
     const store = sqlite ?? createMessageStore();
@@ -45,11 +58,19 @@ const sessions = options.sessions ?? createSessionRegistry();
     const cacheDb = new DatabaseSync(options.dbPath ?? ":memory:");
     cacheDb.exec(SCHEMA);
     const cache = createCacheRepository(cacheDb);
-    conversations = createConversationService({
-      runtime: createAgentRuntime({ cache }),
+    const router = createDefaultRouter(process.env, cache);
+    memory = memory ?? createMemoryService({
       store,
-      workspaces
+      repo: createMemoryRepository(cacheDb),
+      model: router
     });
+    conversations = createConversationService({
+      runtime: createAgentRuntime({ router }),
+      store,
+      workspaces,
+      memory
+    });
+    branches = branches ?? createBranchService({ store, workspaces });
   }
 
   if (options.auth !== false) {
@@ -58,7 +79,7 @@ const sessions = options.sessions ?? createSessionRegistry();
     });
   }
 
-  registerRoutes(app, { conversations, sessions });
+  registerRoutes(app, { conversations, sessions, branches, memory });
   registerTerminal(app, { conversations, token: options.authToken });
   return app;
 }
