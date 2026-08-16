@@ -6,3 +6,18 @@ export {
   type StreamCallbacks
 } from "./ConversationService";
 export { createMessageStore, type MessageStore } from "./MessageStore";
+export {
+  createBranchService,
+  type BranchService,
+  type BranchServiceDeps,
+  type BranchNode,
+  type BranchDiff,
+  type MergeResult,
+  type MergeConflict
+} from "./BranchService";
+export {
+  createMemoryService,
+  type MemoryService,
+  type MemoryServiceDeps,
+  type MemoryModel
+} from "./MemoryService";

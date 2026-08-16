@@ -40,6 +40,13 @@ CREATE TABLE IF NOT EXISTS embeddings (
   created_at INTEGER NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_embeddings_ref_model ON embeddings(content_ref, model);
+CREATE TABLE IF NOT EXISTS memory (
+  id TEXT PRIMARY KEY,
+  conversation_id TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_memory_created ON memory(created_at);
 CREATE TABLE IF NOT EXISTS traces (
   id TEXT PRIMARY KEY,
   conversation_id TEXT NOT NULL,

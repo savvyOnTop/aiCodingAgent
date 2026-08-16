@@ -7,6 +7,8 @@ export interface PromptInput {
   tools: ModelToolSchema[];
   history: ChatMessage[];
   workspaceRootName: string;
+  /** Past-session summaries, newest first (phase 08 memory). */
+  memory?: string[];
 }
 
 export interface PromptBuilderOptions {
@@ -18,6 +20,7 @@ export interface PromptBuilder {
 }
 
 const DEFAULT_MAX_CONTEXT_CHARS = 24_000;
+const MAX_MEMORY_ENTRIES = 5;
 
 /**
  * Builds the system prompt and workspace snapshot message that precede the
@@ -41,7 +44,14 @@ export function createPromptBuilder(options: PromptBuilderOptions = {}): PromptB
       "7. If native tool invocation is unavailable to you, request a tool by replying with exactly one JSON object: {\"name\": \"<tool>\", \"arguments\": {...}}. Never fake a tool result.",
       "",
       "Available tools:",
-      ...input.tools.map((t) => `- ${t.name}: ${t.description}`)
+      ...input.tools.map((t) => `- ${t.name}: ${t.description}`),
+      ...(input.memory && input.memory.length > 0
+        ? [
+            "",
+            "Memory from past sessions (newest first):",
+            ...input.memory.slice(0, MAX_MEMORY_ENTRIES).map((m) => `- ${m}`)
+          ]
+        : [])
     ].join("\n");
 
     let contextText = `Workspace: ${input.workspaceRootName}\n\n`;

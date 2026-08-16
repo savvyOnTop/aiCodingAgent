@@ -34,6 +34,8 @@ export interface RunInput {
   sessionId: string;
   cwd: string;
   redact(text: string): string;
+  /** Recalled memory summaries injected into the system prompt (phase 08). */
+  memory?: string[];
 }
 
 export interface RunResult {
@@ -141,7 +143,8 @@ export function createAgentLoop(options: AgentLoopOptions): AgentLoop {
       context: loaded,
       tools: registry.list(),
       history: input.history,
-      workspaceRootName: input.workspace.id
+      workspaceRootName: input.workspace.id,
+      memory: input.memory
     });
     const historyStart = messages.length;
     const ctx: ToolContext = {

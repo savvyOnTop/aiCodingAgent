@@ -23,6 +23,11 @@ export {
   type SimilarityHit
 } from "./EmbeddingRepository";
 export {
+  createMemoryRepository,
+  type MemoryRepository,
+  type MemoryRecord
+} from "./MemoryRepository";
+export {
   createTraceRepository,
   type TraceRepository,
   type TraceRecord,

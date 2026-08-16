@@ -10,11 +10,14 @@ import type {
 } from "@ai-coding-agent/types";
 import type { AgentRuntime, RunResult } from "../runtime";
 import type { WorkspaceManager } from "../workspace";
+import type { MemoryService } from "./MemoryService";
 import type { MessageStore } from "./MessageStore";
 
 export interface CreateConversationInput {
   root?: string;
   workspaceKind?: Workspace["kind"];
+  /** Opt this conversation into cross-session memory (summarized after runs). */
+  memory?: boolean;
 }
 
 export interface StreamCallbacks {
@@ -26,6 +29,8 @@ export interface ConversationServiceDeps {
   runtime: AgentRuntime;
   store: MessageStore;
   workspaces: WorkspaceManager;
+  /** Phase 08 memory: recall before each run, summarize opted-in runs after. */
+  memory?: MemoryService;
 }
 
 export interface ConversationService {
@@ -54,9 +59,11 @@ const SECRET_KEY_HINT = /(KEY|TOKEN|SECRET|PASSWORD|AUTH)/;
  * workspaces, streams agent runs, and brokers tool confirmations.
  */
 export function createConversationService(deps: ConversationServiceDeps): ConversationService {
-  const { runtime, store, workspaces } = deps;
+  const { runtime, store, workspaces, memory } = deps;
   const pending = new Map<string, PendingConfirmation>();
   const controllers = new Map<string, AbortController>();
+  /** Conversations opted into memory (summarized after each run). */
+  const memoryEnabled = new Set<string>();
 
   async function create(input: CreateConversationInput = {}): Promise<ConversationRecord> {
     const workspace = await workspaces.create({
@@ -71,6 +78,7 @@ export function createConversationService(deps: ConversationServiceDeps): Conver
       parentId: null
     };
     store.create(conversation);
+    if (input.memory === true) memoryEnabled.add(conversation.id);
     return conversation;
   }
 
@@ -105,6 +113,7 @@ export function createConversationService(deps: ConversationServiceDeps): Conver
       return out;
     };
 
+    const recalled = memory ? memory.recall(content).map((r) => r.summary) : undefined;
     const run = await runtime.run(
       {
         task: content,
@@ -112,7 +121,8 @@ export function createConversationService(deps: ConversationServiceDeps): Conver
         workspace,
         sessionId: conversationId,
         cwd: ".",
-        redact
+        redact,
+        memory: recalled
       },
       {
         emit: callbacks.emit,
@@ -128,6 +138,10 @@ export function createConversationService(deps: ConversationServiceDeps): Conver
     controllers.delete(conversationId);
     persistTranscript(conversationId, run.transcript.slice(1));
     callbacks.emit({ type: "agent.done", summary: run.summary, usage: run.usage });
+    if (memory && memoryEnabled.has(conversationId)) {
+      // Memory is opt-in; a summarization failure must not fail the run.
+      await memory.summarize(conversationId).catch(() => undefined);
+    }
     callbacks.onDone?.(run);
   }
 
