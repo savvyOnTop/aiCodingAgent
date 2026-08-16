@@ -1,7 +1,6 @@
 # Phase 09 — Full Tool Suite
 
-**Status:** 🟡 Partial — six tool files exist; `BrowserTool` is a 0-line stub and
-`SearchTool` is a shallow glob wrapper
+**Status:** ✅ Done (`c608be4`, M9 completed)
 
 ## Goal
 
@@ -14,12 +13,12 @@ so the runtime knows what deserves confirmation. Today every tool lives in
 
 | Tool | Status | Notes |
 |------|--------|-------|
-| `FileTool` (69 ln) | ✅ | read/write/list/create with safe-paths guards |
-| `GitTool` (52 ln) | 🟡 | commit/status/diff/log — add branch ops later |
-| `TerminalTool` (29 ln) | ✅ | workspace `run` wrapper with output caps |
-| `SearchTool` (35 ln) | 🟡 | shallow glob/keyword search only |
-| `DiagnosticsTool` (26 ln) | 🟡 | naive string matches; no error taxonomy |
-| `BrowserTool` (0 ln) | ⬜ | not implemented |
+| `FileTool` | ✅ | read/write/list; `write_file` confirm-gated + destructive-flagged |
+| `GitTool` | ✅ | commit/status/diff; `git_commit` destructive-flagged |
+| `TerminalTool` | ✅ | workspace `run` wrapper; destructive-flagged |
+| `SearchTool` | ✅ | `search_code`/`search_symbol`/`search_imports`, rg --json + grep fallback |
+| `DiagnosticsTool` | ✅ | `classify_failure` taxonomy + `attach_snippet` slices |
+| `BrowserTool` | ✅ | `browser_open`/`browser_extract`/`browser_crawl`, markdown-first |
 
 ## Remaining deliverables
 
@@ -63,12 +62,12 @@ so the runtime knows what deserves confirmation. Today every tool lives in
 
 ## Acceptance criteria
 
-- [ ] Code search returns ranked, ignore-respecting results with snippets
-- [ ] BrowserTool navigates and extracts markdown against a fixture page
-- [ ] Diagnostics classify errors into the RepairLoop error taxonomy
-- [ ] Permission flags gate write/git/terminal tools in AgentLoop
-- [ ] All new tests green; full suite + typecheck + lint
-- [ ] Commit as `M9 completed`
+- [x] Code search returns ranked, ignore-respecting results with snippets
+- [x] BrowserTool navigates and extracts markdown against a fixture page
+- [x] Diagnostics classify errors into the RepairLoop error taxonomy
+- [x] Permission flags gate write/git/terminal tools in AgentLoop
+- [x] All new tests green; full suite + typecheck + lint
+- [x] Commit as `M9 completed` (`c608be4`)
 
 ## Verification
 

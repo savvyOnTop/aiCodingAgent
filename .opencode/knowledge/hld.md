@@ -151,7 +151,12 @@ Fastify server. Auth via `authHook` (bearer token, optional). Registers
   controllers.
 - `MessageStore` — `ConversationRecord[]` / `MessageRecord[]` store; in-memory
   default, `SqliteStore` implements the same sync interface for persistence.
-- `BranchService` / `MemoryService` — phase 08 (stubs today).
+- `BranchService` — conversation-level branching (phase 08): fork copies
+  history + workspace, merge overlays messages and replays file changes via
+  `ConflictResolver`, switch/active track one active branch per lineage.
+- `MemoryService` — durable cross-session memory (phase 08): model-produced
+  summaries persisted in the `memory` table (`MemoryRepository`), keyword
+  recall injected into the prompt as a "Memory" block.
 
 ### 3.4 Runtime (`src/runtime`)
 
@@ -166,8 +171,9 @@ The agent's reasoning core.
   compliant.
 - `PromptBuilder` — model prompt: system card + tools schema (Llama‑Tool‑Call
   format) + conversation transcript; optional memory block (phase 08).
-- `ContextLoader` — repo context: shallow tree + manifest key files; deep
-  load in phase 07.
+- `ContextLoader` — repo context: shallow tree + budget-aware, task-ranked
+  key files (phase 07); layered ignore rules (`IgnoreMatcher`) and import-graph
+  promotion (`ImportGraph`).
 - `ToolRegistry` — centralized tool function dispatch + metadata, validated
   per-call.
 - `ValidationLoop` — auto-run after patches (phase 05).
@@ -369,9 +375,9 @@ Implemented / planned milestones mapped to layers:
 | 04 Patch | patch | ✅ `2a81aa6` |
 | 05 Validation+Repair | validation, runtime | ✅ `f867d3b` |
 | 06 Persistence | persistence, gateway, llm | ✅ `87901e8` |
-| 07 Deep context | runtime | ⬜ |
-| 08 Branching+Memory | conversation | ⬜ |
-| 09 Tools | tools | 🟡 partial |
+| 07 Deep context | runtime | ✅ |
+| 08 Branching+Memory | conversation | ✅ |
+| 09 Tools | tools | ✅ |
 | 10 Firecracker+Git | workspace | ⬜ |
 
 Phase-by-phase plans: see `.opencode/docs/implementation-plan.md` and

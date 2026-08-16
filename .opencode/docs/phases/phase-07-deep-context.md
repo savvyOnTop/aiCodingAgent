@@ -1,6 +1,6 @@
 # Phase 07 — Deep Context Loading
 
-**Status:** ⬜ Not started
+**Status:** ✅ Done (`d0def6c`, M7 completed)
 
 ## Goal
 
@@ -44,13 +44,13 @@ that matters for the task — not 8k chars of every manifest — before planning
 
 ## Acceptance criteria
 
-- [ ] Ignore rules (built-in + workspace) respected
-- [ ] Task-keyword ranking beats plain tree order in a fixture repo
-- [ ] Total context stays within budget; per-file truncation flagged
-- [ ] Import graph returns transitive modules for a seed file
-- [ ] Prompt includes manifest + budget footer
-- [ ] All new tests green; `pnpm test && pnpm typecheck && pnpm lint`
-- [ ] Commit as `M7 completed`
+- [x] Ignore rules (built-in + workspace) respected
+- [x] Task-keyword ranking beats plain tree order in a fixture repo
+- [x] Total context stays within budget; per-file truncation flagged
+- [x] Import graph returns transitive modules for a seed file
+- [x] Prompt includes manifest + budget footer
+- [x] All new tests green; `pnpm test && pnpm typecheck && pnpm lint`
+- [x] Commit as `M7 completed` (`d0def6c`)
 
 ## Verification
 

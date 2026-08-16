@@ -18,9 +18,9 @@ and is committed as a single milestone commit.
 | 4 | Patch Engine | ✅ Done | `2a81aa6` (M4 completed) |
 | 5 | Validation & Repair Loop | ✅ Done | `f867d3b` (M5 completed) |
 | 6 | Persistence & Repositories | ✅ Done | `87901e8` (M6 completed) |
-| 7 | Deep Context Loading | ⬜ Not started | see phases/phase-07 |
-| 8 | Branching & Memory | ⬜ Not started | see phases/phase-08 |
-| 9 | Full Tool Suite | 🟡 Partial (WIP) | see phases/phase-09 |
+| 7 | Deep Context Loading | ✅ Done | `d0def6c` (M7 completed) |
+| 8 | Branching & Memory | ✅ Done | `3412a04` (M8 completed) |
+| 9 | Full Tool Suite | ✅ Done | `c608be4` (M9 completed) |
 | 10 | Firecracker Workspaces & Hardening | ⬜ Not started | see phases/phase-10 |
 
 ## Rendering of phases 01–05

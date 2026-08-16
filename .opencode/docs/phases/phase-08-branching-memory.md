@@ -1,6 +1,6 @@
 # Phase 08 — Branching & Memory
 
-**Status:** ⬜ Not started
+**Status:** ✅ Done (`3412a04`, M8 completed)
 
 ## Goal
 
@@ -54,12 +54,12 @@ across sessions.
 
 ## Acceptance criteria
 
-- [ ] Fork creates an isolated conversation + workspace
-- [ ] Merge surfaces conflicts via `ConflictResolver` (or succeeds)
-- [ ] Branch switcher works end-to-end in the UI
-- [ ] Summaries persist and recall for matching goals
-- [ ] All new tests green; full suite + typecheck + lint
-- [ ] Commit as `M8 completed`
+- [x] Fork creates an isolated conversation + workspace
+- [x] Merge surfaces conflicts via `ConflictResolver` (or succeeds)
+- [x] Branch switcher works end-to-end in the UI
+- [x] Summaries persist and recall for matching goals
+- [x] All new tests green; full suite + typecheck + lint
+- [x] Commit as `M8 completed` (`3412a04`)
 
 ## Verification
 
