@@ -21,7 +21,7 @@ and is committed as a single milestone commit.
 | 7 | Deep Context Loading | ✅ Done | `d0def6c` (M7 completed) |
 | 8 | Branching & Memory | ✅ Done | `3412a04` (M8 completed) |
 | 9 | Full Tool Suite | ✅ Done | `c608be4` (M9 completed) |
-| 10 | Firecracker Workspaces & Hardening | ⬜ Not started | see phases/phase-10 |
+| 10 | Firecracker Workspaces & Hardening | ✅ Done | `e04a5d5` (M10 completed) |
 
 ## Rendering of phases 01–05
 

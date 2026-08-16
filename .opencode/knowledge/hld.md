@@ -66,7 +66,7 @@ and reports results through a streaming web UI.
 ┌──────────▼──────────────────────────▼───────────────────────────────────────┐
 │  WORKSPACE — isolation boundary (nothing escapes to the host)                │
 │  WorkspaceManager: create · get · destroy · destroyAll · rehydrate(records) │
-│  LocalWorkspace · DockerWorkspace · GitWorkspace* · FirecrackerWorkspace*   │
+│  LocalWorkspace · DockerWorkspace · GitWorkspace · FirecrackerWorkspace     │
 └───────┬───────────────────────────────────────────────▲───────────────────────┘
         │ read/write/run (files & commands)             │ re-attach on boot
         ▼                                               ▼
@@ -378,7 +378,7 @@ Implemented / planned milestones mapped to layers:
 | 07 Deep context | runtime | ✅ |
 | 08 Branching+Memory | conversation | ✅ |
 | 09 Tools | tools | ✅ |
-| 10 Firecracker+Git | workspace | ⬜ |
+| 10 Firecracker+Git | workspace | ✅ |
 
 Phase-by-phase plans: see `.opencode/docs/implementation-plan.md` and
 `.opencode/docs/phases/`.

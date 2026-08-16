@@ -1,7 +1,8 @@
 # Phase 10 — GitWorkspace, Firecracker Workspaces & Hardening
 
-**Status:** ⬜ Not started — `FirecrackerWorkspace.ts` and `GitWorkspace.ts`
-are 0-line stubs
+**Status:** ✅ Done — see acceptance criteria; Firecracker drives a runner CLI
+(`FIRECRACKER_BIN`) implementing boot/exec/snapshot/teardown, unit-tested via a
+stub runner and exercising a real one when the env var is set
 
 ## Goal
 
@@ -60,13 +61,13 @@ untrusted environments.
 
 ## Acceptance criteria
 
-- [ ] GitWorkspace: clone → edit → commit → status from inside a root backend
-- [ ] Firecracker: boot → run → snapshot → re-attach → teardown (gated)
-- [ ] Rate limiting + authz verified by tests (401 / 429 paths)
-- [ ] Redaction covers streamed tool output and terminal
-- [ ] Streaming backpressure implemented
-- [ ] Full suite green; `pnpm test && pnpm typecheck && pnpm lint`
-- [ ] Commit as `M10 completed`
+- [x] GitWorkspace: clone → edit → commit → status from inside a root backend
+- [x] Firecracker: boot → run → snapshot → re-attach → teardown (gated)
+- [x] Rate limiting + authz verified by tests (401 / 429 paths)
+- [x] Redaction covers streamed tool output and terminal
+- [x] Streaming backpressure implemented
+- [x] Full suite green; `pnpm test && pnpm typecheck && pnpm lint`
+- [x] Commit as `M10 completed`
 
 ## Verification
 
